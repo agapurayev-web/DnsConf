@@ -186,9 +186,10 @@ Previously generated data will be removed. Script recognizes old data by marks:
 
 After removing old data, new lists and rules will be generated and applied.
 
-If you want to clear **Cloudflare** block/redirect settings, launch the script without providing sources in related *
-*environment variables**. E.g. providing no value for **environment variable** `BLOCK` will cause removing old related
-data: lists and rules used to setup blocks.
+If both `BLOCK` and `REDIRECT` are empty, the script stops before changing DNS settings. To clear all generated
+**Cloudflare** block/redirect settings intentionally, set the `ALLOW_EMPTY_CONFIG` environment variable to `true` and
+launch the script without either source. If only one source is omitted, Cloudflare settings for that source type are
+still removed during the normal rebuild.
 
 ### NextDNS
 
@@ -203,7 +204,8 @@ For `BLOCK`:
 + If new domains are provided, they will be added
 + The rest block settings are kept untouched
 
-Previously generated data is removed **ONLY** when both `BLOCK` and `REDIRECT` sources were not provided.
+Previously generated data is removed **ONLY** when both `BLOCK` and `REDIRECT` sources are not provided and
+`ALLOW_EMPTY_CONFIG` is explicitly set to `true`. Otherwise, an empty configuration fails safely.
 
 ---
 
@@ -217,7 +219,10 @@ Previously generated data is removed **ONLY** when both `BLOCK` and `REDIRECT` s
 2) Go _Settings_ => _Environments_
 3) Create _New environment_ with name `DNS`
 4) Provide `AUTH_SECRET` and `CLIENT_ID` to **Environment secrets**
-5) Provide `DNS`,`REDIRECT`, `BLOCK` and `EXCLUDE_REDIRECT` to **Environment variables**
+5) Provide `DNS`, `REDIRECT`, `BLOCK` and `EXCLUDE_REDIRECT` to **Environment variables**
+
+Do not create `ALLOW_EMPTY_CONFIG` for normal scheduled runs. Set it to `true` only temporarily when you intentionally
+want an empty configuration to remove generated DNS settings, then remove it or set it back to `false`.
 
 + The action will be launched every day at **01:30 UTC**. To set another time, change cron at
   `.github/workflows/github_action.yml`

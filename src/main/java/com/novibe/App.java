@@ -13,33 +13,56 @@ import org.springframework.context.annotation.AnnotationConfigApplicationContext
 
 import java.util.List;
 
+import static com.novibe.common.config.EnvironmentVariables.ALLOW_EMPTY_CONFIG;
+import static com.novibe.common.config.EnvironmentVariables.BLOCK;
+import static com.novibe.common.config.EnvironmentVariables.REDIRECT;
 import static java.util.Objects.nonNull;
 
 public class App {
 
     static void main() {
+        validateConfiguration();
         final List<DnsProfile> dnsProfiles = EnvParser.parseProfiles();
         final AnnotationConfigApplicationContext commonContext = loadCommonApplicationContext();
+        int failedProfiles = 0;
 
-        for (DnsProfile dnsProfile : dnsProfiles) {
-            AnnotationConfigApplicationContext currentContext = null;
-            try {
-                currentContext = loadCurrentProfileContext(dnsProfile, commonContext);
+        try {
+            for (DnsProfile dnsProfile : dnsProfiles) {
+                AnnotationConfigApplicationContext currentContext = null;
+                try {
+                    currentContext = loadCurrentProfileContext(dnsProfile, commonContext);
 
-                DnsTaskRunner runner = currentContext.getBean(DnsTaskRunner.class);
-                runner.run();
+                    DnsTaskRunner runner = currentContext.getBean(DnsTaskRunner.class);
+                    runner.run();
 
-            } catch (CredentialsException credentialsException) {
-                Log.fail("CredentialsException on profile " + dnsProfile.number());
-                Log.fail(credentialsException.getMessage());
-            } catch (Exception exception) {
-                Log.fail("Unexpected exception on profile " + dnsProfile.number());
-                exception.printStackTrace(System.out);
-            } finally {
-                if (nonNull(currentContext)) currentContext.close();
+                } catch (CredentialsException credentialsException) {
+                    failedProfiles++;
+                    Log.fail("CredentialsException on profile " + dnsProfile.number());
+                    Log.fail(credentialsException.getMessage());
+                } catch (Exception exception) {
+                    failedProfiles++;
+                    Log.fail("Unexpected exception on profile " + dnsProfile.number());
+                    exception.printStackTrace(System.out);
+                } finally {
+                    if (nonNull(currentContext)) currentContext.close();
+                }
             }
+        } finally {
+            commonContext.close();
         }
-        commonContext.close();
+
+        if (failedProfiles > 0) {
+            throw new IllegalStateException("Failed to update %s DNS profile(s)".formatted(failedProfiles));
+        }
+    }
+
+    private static void validateConfiguration() {
+        boolean noBlockSources = EnvParser.parse(BLOCK).isEmpty();
+        boolean noRedirectSources = EnvParser.parse(REDIRECT).isEmpty();
+        if (noBlockSources && noRedirectSources && !ALLOW_EMPTY_CONFIG) {
+            throw UserInputException.noStackTrace("BLOCK and REDIRECT are both empty. "
+                    + "Refusing to remove DNS settings. Set ALLOW_EMPTY_CONFIG=true to confirm an intentional cleanup.");
+        }
     }
 
     private static AnnotationConfigApplicationContext loadCommonApplicationContext() {

@@ -28,7 +28,8 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
         Log.global("Setting up Profile " + dnsProfile.number() + " (NextDNS)");
         Log.common("""
                 Script behaviour: old BLOCK/REDIRECT settings are about to be updated via provided BLOCK/REDIRECT sources.
-                - if no sources provided, then all NextDNS settings will be removed.
+                - if no sources are provided, the run stops safely by default.
+                - to remove all NextDNS settings intentionally, set ALLOW_EMPTY_CONFIG=true.
                 - each line is mapped to an IP–domain pair; lines that cannot be parsed are skipped.
                 - if provided only one type of sources, related settings will be updated; another type remain untouched.
                 - if EXCLUDE_REDIRECT domains provided, they will affect both existing and new redirect rules.

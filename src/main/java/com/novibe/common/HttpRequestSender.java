@@ -13,6 +13,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.concurrent.Semaphore;
 
 import static java.util.Objects.isNull;
@@ -62,14 +63,19 @@ public abstract class HttpRequestSender {
         } else {
             requestBody = HttpRequest.BodyPublishers.ofString(body.toJson());
         }
-        semaphore.acquire();
         HttpRequest request = HttpRequest.newBuilder(uri)
                 .header(authHeaderName(), authHeaderValue())
                 .header("Content-Type", "application/json")
+                .timeout(Duration.ofSeconds(30))
                 .method(method, requestBody)
                 .build();
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        semaphore.release();
+        semaphore.acquire();
+        HttpResponse<String> response;
+        try {
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        } finally {
+            semaphore.release();
+        }
         if (response.statusCode() > 299) {
             DnsHttpError httpError = new DnsHttpError(response, body);
             Log.fail(httpError.getMessage());
