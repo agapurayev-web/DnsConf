@@ -18,6 +18,8 @@ public class EnvironmentVariables {
 
     public static final String EXCLUDE_REDIRECT = System.getenv("EXCLUDE_REDIRECT");
 
+    public static final boolean ALLOW_EMPTY_CONFIG = Boolean.parseBoolean(System.getenv("ALLOW_EMPTY_CONFIG"));
+
     private static String extractMandatoryVariable(String key) {
         String env = System.getenv(key);
         if (isNull(env) || env.isBlank()) {
