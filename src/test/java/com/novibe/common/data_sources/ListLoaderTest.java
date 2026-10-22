@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpHeaders;
@@ -12,6 +13,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import javax.net.ssl.SSLSession;
 import java.util.concurrent.StructuredTaskScope;
 import java.util.function.Predicate;
 
@@ -38,12 +41,17 @@ class ListLoaderTest {
     }
 
     private HttpResponse<String> response(int status, String body, String contentType) {
-        HttpResponse<String> response = mock(HttpResponse.class);
-        when(response.statusCode()).thenReturn(status);
-        when(response.body()).thenReturn(body);
-        when(response.headers()).thenReturn(HttpHeaders.of(
-                Map.of("Content-Type", List.of(contentType)), (name, value) -> true));
-        return response;
+        return new HttpResponse<>() {
+            public int statusCode() { return status; }
+            public String body() { return body; }
+            public HttpHeaders headers() { return HttpHeaders.of(
+                    Map.of("Content-Type", List.of(contentType)), (name, value) -> true); }
+            public HttpRequest request() { return HttpRequest.newBuilder(URI.create(URL)).build(); }
+            public Optional<HttpResponse<String>> previousResponse() { return Optional.empty(); }
+            public Optional<SSLSession> sslSession() { return Optional.empty(); }
+            public URI uri() { return URI.create(URL); }
+            public HttpClient.Version version() { return HttpClient.Version.HTTP_1_1; }
+        };
     }
 
     private HttpResponse<String> validResponse() {
@@ -127,3 +135,4 @@ class ListLoaderTest {
         verify(client).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
     }
 }
+
