@@ -9,6 +9,7 @@ import lombok.Setter;
 import lombok.SneakyThrows;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -70,7 +71,7 @@ public abstract class ListLoader<T> {
                 .timeout(Duration.ofSeconds(30))
                 .GET()
                 .build();
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> response = sendWithRetry(request);
         if (response.statusCode() < 200 || response.statusCode() > 299) {
             throw UserInputException.noStackTrace("Failed to load %s list from %s: HTTP %s"
                     .formatted(listType(), url, response.statusCode()));
@@ -82,6 +83,38 @@ public abstract class ListLoader<T> {
                     .formatted(listType(), url));
         }
         return body;
+    }
+
+    private HttpResponse<String> sendWithRetry(HttpRequest request) throws IOException, InterruptedException {
+        final int maxAttempts = 3;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                HttpResponse<String> response = client.send(
+                        request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+                int status = response.statusCode();
+                if (attempt == maxAttempts || (status != 502 && status != 503 && status != 504)) {
+                    return response;
+                }
+                Log.fail("Temporary HTTP %s loading %s (attempt %s/%s); retrying"
+                        .formatted(status, request.uri(), attempt, maxAttempts));
+            } catch (IOException exception) {
+                if (attempt == maxAttempts) {
+                    throw new IOException("Failed to load %s list from %s after %s attempts"
+                            .formatted(listType(), request.uri(), maxAttempts), exception);
+                }
+                Log.fail("%s loading %s (attempt %s/%s); retrying"
+                        .formatted(exception.getClass().getSimpleName(), request.uri(), attempt, maxAttempts));
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw exception;
+            }
+            pauseBeforeRetry(attempt);
+        }
+        throw new IllegalStateException("Retry loop exhausted");
+    }
+
+    void pauseBeforeRetry(int attempt) throws InterruptedException {
+        Thread.sleep(Duration.ofSeconds(2L * attempt));
     }
 
     private boolean looksLikeHtml(String body) {
